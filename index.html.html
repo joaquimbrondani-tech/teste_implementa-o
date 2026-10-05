@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste de Ruídos - Medidor Escolar</title>
+
+  <!-- External libraries: Tailwind CSS, Google Fonts, Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Fredoka', 'sans-serif'],
+          },
+          colors: {
+            safe: '#10B981',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Dynamic glow highlights according to noise state */
+    .glow-safe { box-shadow: 0 0 30px rgba(16, 185, 129, 0.25); }
+    .glow-warning { box-shadow: 0 0 30px rgba(245, 158, 11, 0.35); }
+    .glow-danger { box-shadow: 0 0 40px rgba(239, 68, 68, 0.5); }
+
+    @keyframes pulseAlert {
+      0%, 100% { background-color: rgba(239, 68, 68, 0.05); }
+      50% { background-color: rgba(239, 68, 68, 0.22); }
+    }
+
+    .alert-active {
+      animation: pulseAlert 0.7s infinite;
+    }
+  </style>
+</head>
+
+<body class="h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100 overflow-x-hidden selection:bg-indigo-500 selection:text-white">
+
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 px-4 py-3 sm:px-6">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+          <i data-lucide="volume-2" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="font-display text-xl font-bold tracking-wide text-white flex items-center gap-2">
+            Teste de Ruídos <span class="text-xs font-sans font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Sala de Aula</span>
+          </h1>
+          <p class="text-xs text-slate-400 hidden sm:block">Medidor de Ruído Escolar em Tempo Real</p>
+        </div>
+      </div>
+
+      <!-- Header Action Controls -->
+      <div class="flex items-center gap-2">
+        <button id="btnToggleAudio" onclick="toggleAudio()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95">
+          <i data-lucide="mic" class="w-4 h-4"></i>
+          <span id="btnAudioText">Iniciar Microfone</span>
+        </button>
+
+        <button onclick="toggleFullScreen()" title="Tela Cheia" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors">
+          <i data-lucide="maximize" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+
+    <!-- Status Banner & Character Display -->
+    <div id="statusContainer" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 transition-all duration-300 glow-safe">
+      <div class="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+        <div id="statusEmoji" class="text-7xl sm:text-8xl transition-all duration-300 transform hover:scale-105">
+          😴
+        </div>
+        <div>
+          <div id="statusBadge" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mb-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="statusBadgeText">Silencioso</span>
+          </div>
+          <h2 id="statusTitle" class="font-display text-2xl sm:text-4xl font-bold text-white">Ambiente Calmo</h2>
+          <p id="statusDesc" class="text-slate-400 text-sm sm:text-base mt-1">A sala está ótima para concentração e estudos.</p>
+        </div>
+      </div>
+
+      <!-- Quick Metrics -->
+      <div class="flex items-center gap-4 sm:gap-8 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 w-full md:w-auto justify-around">
+        <div class="text-center">
+          <p class="text-xs text-slate-400 uppercase tracking-wider font-medium">Nível Atual</p>
+          <p id="dbValue" class="font-display text-3xl sm:text-4xl font-bold text-emerald-400 mt-1">0 <span class="text-base font-normal text-slate-400">dB</span></p>
+        </div>
+        <div class="w-px h-10 bg-slate-800"></div>
+        <div class="text-center">
+          <p class="text-xs text-slate-400 uppercase tracking-wider font-medium">Limite Setado</p>
+          <p id="limitDisplay" class="font-display text-3xl sm:text-4xl font-bold text-amber-400 mt-1">70 <span class="text-base font-normal text-slate-400">dB</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left Panel: VU Meter & Sensitivity Controls -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between gap-6">
+        <div>
+          <h3 class="text-lg font-bold text-white flex items-center gap-2 mb-4">
+            <i data-lucide="gauge" class="w-5 h-5 text-indigo-400"></i> Medidor Instantâneo
+          </h3>
+
+          <!-- Visual VU Bar -->
+          <div class="space-y-2 mb-6">
+            <div class="flex justify-between text-xs text-slate-400 font-medium">
+              <span>0 dB</span>
+              <span>50 dB</span>
+              <span>100 dB</span>
+            </div>
+            <div class="h-6 bg-slate-950 rounded-full p-1 border border-slate-800 relative overflow-hidden flex items-center">
+              <div id="meterBar" class="h-full bg-emerald-500 rounded-full transition-all duration-100" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Threshold Slider Control -->
+          <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80 space-y-3">
+            <div class="flex justify-between items-center">
+              <label for="thresholdRange" class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Ajuste de Tolerância</label>
+              <span id="thresholdValueText" class="text-sm font-bold text-amber-400">70 dB</span>
+            </div>
+            <input type="range" id="thresholdRange" min="40" max="95" value="70" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="updateThreshold(this.value)">
+            <p class="text-xs text-slate-400">Avisará quando o barulho ultrapassar este valor.</p>
+          </div>
+        </div>
+
+        <!-- Sensitivity controls -->
+        <div class="pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <span>Sensibilidade Mic:</span>
+          <div class="flex gap-2">
+            <button onclick="setSensitivity(0.8)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">Baixa</button>
+            <button onclick="setSensitivity(1.2)" class="px-2.5 py-1 bg-indigo-600 text-white font-medium rounded-lg transition-colors">Média</button>
+            <button onclick="setSensitivity(1.8)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">Alta</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Panel: Real-time Sound Graph -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 lg:col-span-2 flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i data-lucide="activity" class="w-5 h-5 text-indigo-400"></i> Gráfico em Tempo Real
+          </h3>
+          <span class="text-xs text-slate-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-indigo-500"></span> Onda Sonora
+          </span>
+        </div>
+
+        <div class="flex-1 w-full min-h-[220px] bg-slate-950 rounded-2xl border border-slate-800/80 p-2 relative overflow-hidden flex items-center justify-center">
+          <canvas id="soundGraphCanvas" class="w-full h-full block"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+        <p class="text-xs text-slate-400 font-medium">Média da Sessão</p>
+        <p id="statAvg" class="text-2xl font-bold font-display text-white mt-1">0 <span class="text-xs text-slate-500 font-normal">dB</span></p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+        <p class="text-xs text-slate-400 font-medium">Pico Máximo</p>
+        <p id="statPeak" class="text-2xl font-bold font-display text-rose-400 mt-1">0 <span class="text-xs text-slate-500 font-normal">dB</span></p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+        <p class="text-xs text-slate-400 font-medium">Alertas de Excesso</p>
+        <p id="statAlerts" class="text-2xl font-bold font-display text-amber-400 mt-1">0 <span class="text-xs text-slate-500 font-normal">vezes</span></p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+        <p class="text-xs text-slate-400 font-medium">Tempo de Aula</p>
+        <p id="statTime" class="text-2xl font-bold font-display text-emerald-400 mt-1">00:00</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    /* State Variables */
+    let audioContext = null;
+    let analyser = null;
+    let microphone = null;
+    let isMonitoring = false;
+    let animationFrameId = null;
+
+    let noiseThreshold = 70;
+    let sensitivityMultiplier = 1.2;
+
+    let dbHistory = [];
+    let peakDb = 0;
+    let alertCount = 0;
+    let isAlerting = false;
+
+    let sessionStartTime = null;
+    let timerInterval = null;
+
+    /* Canvas setup */
+    const canvas = document.getElementById('soundGraphCanvas');
+    const ctx = canvas.getContext('2d');
+    let graphData = new Array(100).fill(0);
+
+    /* Resize canvas responsively */
+    function resizeCanvas() {
+      if (canvas && canvas.parentElement) {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+      }
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    /* Toggle audio capture on/off */
+    async function toggleAudio() {
+      if (isMonitoring) {
+        stopAudioMonitoring();
+      } else {
+        await startAudioMonitoring();
+      }
+    }
+
+    /* Start Web Audio API input stream */
+    async function startAudioMonitoring() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        
+        microphone = audioContext.createMediaStreamSource(stream);
+        microphone.connect(analyser);
+
+        isMonitoring = true;
+        sessionStartTime = Date.now();
+        startTimer();
+
+        /* Update UI Button */
+        document.getElementById('btnAudioText').innerText = "Parar Microfone";
+        const btn = document.getElementById('btnToggleAudio');
+        btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+        btn.classList.add('bg-rose-600', 'hover:bg-rose-500');
+
+        processAudio();
+      } catch (err) {
+        showCustomToast("Acesso ao microfone negado ou indisponível.");
+        console.error("Erro ao acessar o microfone:", err);
+      }
+    }
+
+    function stopAudioMonitoring() {
+      if (audioContext) {
+        audioContext.close();
+      }
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      clearInterval(timerInterval);
+
+      isMonitoring = false;
+
+      /* Reset UI Button */
+      document.getElementById('btnAudioText').innerText = "Iniciar Microfone";
+      const btn = document.getElementById('btnToggleAudio');
+      btn.classList.remove('bg-rose-600', 'hover:bg-rose-500');
+      btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+
+      updateStatusUI(0);
+    }
+
+    function processAudio() {
+      if (!isMonitoring) return;
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      analyser.getByteFrequencyData(dataArray);
+
+      /* Calculate Root Mean Square (RMS) sound energy */
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i] * dataArray[i];
+      }
+      let rms = Math.sqrt(sum / bufferLength);
+
+      /* Estimate relative Decibels scaled for classroom setting */
+      let estimatedDb = Math.min(100, Math.round((rms / 255) * 100 * sensitivityMultiplier));
+
+      /* Update stats */
+      if (estimatedDb > peakDb) {
+        peakDb = estimatedDb;
+        document.getElementById('statPeak').innerHTML = `${peakDb} <span class="text-xs text-slate-500 font-normal">dB</span>`;
+      }
+
+      dbHistory.push(estimatedDb);
+      if (dbHistory.length > 500) dbHistory.shift();
+
+      const avg = Math.round(dbHistory.reduce((a, b) => a + b, 0) / dbHistory.length);
+      document.getElementById('statAvg').innerHTML = `${avg} <span class="text-xs text-slate-500 font-normal">dB</span>`;
+
+      /* Update Meter and Graph */
+      updateStatusUI(estimatedDb);
+      drawGraph(estimatedDb);
+
+      animationFrameId = requestAnimationFrame(processAudio);
+    }
+
+    function updateStatusUI(db) {
+      document.getElementById('dbValue').innerHTML = `${db} <span class="text-base font-normal text-slate-400">dB</span>`;
+      document.getElementById('meterBar').style.width = `${Math.min(100, db)}%`;
+
+      const container = document.getElementById('statusContainer');
+      const emoji = document.getElementById('statusEmoji');
+      const badge = document.getElementById('statusBadge');
+      const badgeText = document.getElementById('statusBadgeText');
+      const title = document.getElementById('statusTitle');
+      const desc = document.getElementById('statusDesc');
+
+      const meterBar = document.getElementById('meterBar');
+
+      /* Alert status logic */
+      if (db >= noiseThreshold && isMonitoring) {
+        if (!isAlerting) {
+          alertCount++;
+          document.getElementById('statAlerts').innerHTML = `${alertCount} <span class="text-xs text-slate-500 font-normal">vezes</span>`;
+          isAlerting = true;
+        }
+
+        container.className = "bg-slate-900 border border-rose-500/50 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 transition-all duration-300 glow-danger alert-active";
+        badge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 mb-2";
+        badgeText.innerText = "Muito Barulho!";
+        emoji.innerText = "📢";
+        title.innerText = "Silêncio, por favor!";
+        desc.innerText = "O nível de som excedeu o limite tolerado para a atividade.";
+        meterBar.className = "h-full bg-rose-500 rounded-full transition-all duration-100";
+      } else {
+        isAlerting = false;
+        container.classList.remove('alert-active');
+
+        if (db < noiseThreshold - 15) {
+          /* Quiet / Silent */
+          container.className = "bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 transition-all duration-300 glow-safe";
+          badge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mb-2";
+          badgeText.innerText = "Silencioso";
+          emoji.innerText = "😴";
+          title.innerText = "Ambiente Calmo";
+          desc.innerText = "A sala está ótima para concentração e estudos.";
+          meterBar.className = "h-full bg-emerald-500 rounded-full transition-all duration-100";
+        } else {
+          /* Moderate Noise */
+          container.className = "bg-slate-900 border border-amber-500/30 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 transition-all duration-300 glow-warning";
+          badge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 mb-2";
+          badgeText.innerText = "Atenção";
+          emoji.innerText = "🙂";
+          title.innerText = "Barulho Moderado";
+          desc.innerText = "Nível aceitável para conversas em grupo moderadas.";
+          meterBar.className = "h-full bg-amber-500 rounded-full transition-all duration-100";
+        }
+      }
+    }
+
+    function drawGraph(newDb) {
+      graphData.push(newDb);
+      graphData.shift();
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const step = canvas.width / (graphData.length - 1);
+      ctx.beginPath();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#6366f1';
+
+      for (let i = 0; i < graphData.length; i++) {
+        const x = i * step;
+        const y = canvas.height - (graphData[i] / 100) * canvas.height;
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.stroke();
+
+      /* Threshold Line */
+      const thresholdY = canvas.height - (noiseThreshold / 100) * canvas.height;
+      ctx.beginPath();
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.moveTo(0, thresholdY);
+      ctx.lineTo(canvas.width, thresholdY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function updateThreshold(val) {
+      noiseThreshold = parseInt(val, 10);
+      document.getElementById('thresholdValueText').innerText = `${val} dB`;
+      document.getElementById('limitDisplay').innerHTML = `${val} <span class="text-base font-normal text-slate-400">dB</span>`;
+    }
+
+    function setSensitivity(val) {
+      sensitivityMultiplier = val;
+      showCustomToast(`Sensibilidade alterada para ${val}x`);
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        if (!sessionStartTime) return;
+        const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const secs = String(elapsed % 60).padStart(2, '0');
+        document.getElementById('statTime').innerText = `${mins}:${secs}`;
+      }, 1000);
+    }
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    function showCustomToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-6 right-6 bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-xl z-50 text-sm flex items-center gap-2 animate-bounce';
+      toast.innerHTML = `<i data-lucide="info" class="w-4 h-4 text-indigo-400"></i> ${message}`;
+      document.body.appendChild(toast);
+      lucide.createIcons();
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    /* Initialize Lucide Icons on load */
+    window.addEventListener('load', () => {
+      lucide.createIcons();
+      resizeCanvas();
+    });
+  </script>
+</body>
+</html>
